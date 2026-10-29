@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Road Risk Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--asphalt:#12161C;--asphalt2:#1B2129;--line:#2C343F;--paint:#F2F4F7;--muted:#8B96A5;--sign:#FFC928;--safe:#2ECC8F;--warn:#FFA630;--danger:#FF4D4D}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;display:flex;background:var(--asphalt);color:var(--paint);font-family:Barlow,system-ui,sans-serif}
+#panel{width:390px;flex:none;overflow:auto;padding:22px 22px 28px;border-right:1px solid var(--line)}
+#map{flex:1;background:#0b0e12}
+h1{font:700 30px/1.05 "Barlow Condensed",sans-serif;margin:0 0 6px;letter-spacing:.2px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 16px}
+:focus-visible{outline:2px solid var(--sign);outline-offset:2px}
+form{display:flex;gap:8px}
+input[type=search]{flex:1;min-width:0;padding:11px 12px;border-radius:8px;border:1px solid var(--line);background:var(--asphalt2);color:var(--paint);font:inherit}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--asphalt2);color:var(--paint);padding:10px 14px}
+button:hover{border-color:var(--muted)}
+.primary{background:var(--sign);color:#161200;border-color:var(--sign);font-weight:600;width:100%;margin-top:10px;padding:13px;font-size:16px}
+.primary:hover{border-color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.chips button{padding:5px 11px;border-radius:99px;font-size:13px;color:var(--muted)}
+.chips button:hover{color:var(--paint)}
+.toggles{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:14px;color:var(--muted)}
+.toggles label{display:flex;gap:7px;align-items:center;cursor:pointer}
+.empty,.msg{margin-top:22px;padding:16px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:14px}
+.msg{border-style:solid;border-color:var(--danger);color:#ffb3b3}
+.hidden{display:none!important}
+.sk{height:150px;margin-top:22px;border-radius:12px;background:linear-gradient(90deg,var(--asphalt2),#232b35,var(--asphalt2));background-size:200% 100%;animation:sh 1.2s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+#out{margin-top:18px}
+.gauge{position:relative;width:260px;margin:0 auto}
+.gauge svg{width:100%;display:block;overflow:visible}
+.arc{fill:none;stroke-width:14;stroke-linecap:butt}
+#needle{transform-origin:100px 100px;transform:rotate(-90deg);transition:transform 1.1s cubic-bezier(.2,.9,.25,1.1)}
+.read{text-align:center;margin-top:-6px}
+#num{font:700 56px/1 "Barlow Condensed",sans-serif}
+#num small{font-size:26px;color:var(--muted)}
+#lvl{font:700 24px/1.1 "Barlow Condensed",sans-serif;margin-top:2px}
+#advice{color:#c5ccd6;font-size:14px;margin:8px 4px 0;text-align:center}
+h2{font:600 17px "Barlow Condensed",sans-serif;letter-spacing:.4px;margin:22px 0 8px;color:var(--sign)}
+dl{margin:0}
+dl div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+dt{color:var(--muted)} dd{margin:0;text-align:right}
+.bar{margin:9px 0;font-size:14px}
+.bar i{display:block;height:7px;margin-top:5px;border-radius:4px;background:var(--danger);width:0;transition:width .9s ease}
+.addr{color:var(--muted);font-size:12.5px;margin-top:14px;line-height:1.45}
+.row{display:flex;gap:8px;margin-top:12px}.row button{flex:1;font-size:14px}
+.recent button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;margin-top:6px;font-size:13px;padding:8px 10px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.legend{position:absolute;right:14px;bottom:22px;z-index:500;background:rgba(18,22,28,.9);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12.5px;display:flex;gap:12px}
+.legend span{display:flex;align-items:center;gap:6px}
+.dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.85) saturate(.8)}
+.pin{position:relative;width:18px;height:18px;border-radius:50%;background:var(--sign);border:3px solid #fff;box-shadow:0 0 0 2px #000}
+.pin::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px solid var(--sign);animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{from{transform:scale(.5);opacity:1}to{transform:scale(1.7);opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:760px){body{flex-direction:column-reverse;height:100dvh}#panel{width:100%;height:58%;border-right:0;border-top:1px solid var(--line)}#map{height:42%;flex:none}}
+</style>
+</head>
+<body>
+<aside id="panel">
+  <h1>How risky is this road right now?</h1>
+  <p class="sub">Live weather, road type and time checked for any spot in India.</p>
+  <form id="searchForm"><input id="q" type="search" placeholder="Search a city, area or highway" aria-label="Search a place"><button>Search</button></form>
+  <button class="primary" id="locBtn">Check my live location</button>
+  <div class="chips" id="chips"></div>
+  <div class="toggles">
+    <label><input type="checkbox" id="track"> Follow me as I move</label>
+    <label><input type="checkbox" id="gridToggle"> Risk heat map</label>
+  </div>
+
+  <div id="empty" class="empty">Tap anywhere on the map, search a place, or share your location to see its risk.</div>
+  <div id="msg" class="msg hidden" role="alert"></div>
+  <div id="sk" class="sk hidden"></div>
+
+  <section id="out" class="hidden" aria-live="polite">
+    <div class="gauge">
+      <svg viewBox="0 0 200 118" role="img" aria-label="Risk gauge">
+        <path class="arc" d="M20 100A80 80 0 0 1 180 100" pathLength="100" stroke="#232b35"/>
+        <path class="arc" d="M20 100A80 80 0 0 1 180 100" pathLength="100" stroke="var(--safe)" stroke-dasharray="24 100"/>
+        <path class="arc" d="M20 100A80 80 0 0 1 180 100" pathLength="100" stroke="var(--warn)" stroke-dasharray="24 100" stroke-dashoffset="-25"/>
+        <path class="arc" d="M20 100A80 80 0 0 1 180 100" pathLength="100" stroke="var(--danger)" stroke-dasharray="49 100" stroke-dashoffset="-50"/>
+        <g id="needle"><line x1="100" y1="100" x2="100" y2="34" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="100" cy="100" r="7" fill="#fff"/></g>
+      </svg>
+    </div>
+    <div class="read"><div id="num">0<small>%</small></div><div id="lvl"></div></div>
+    <p id="advice"></p>
+    <h2>What is adding to the risk</h2><div id="factors"></div>
+    <h2>Conditions at this spot</h2><dl id="facts"></dl>
+    <div class="addr" id="addr"></div>
+    <div class="row"><button id="copyBtn">Copy share link</button><button id="refreshBtn">Refresh</button></div>
+    <div class="addr" id="src"></div>
+  </section>
+
+  <div id="recentBox" class="recent hidden"><h2>Recent checks</h2><div id="recent"></div></div>
+</aside>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hex = p => p >= .5 ? '#FF4D4D' : p >= .25 ? '#FFA630' : '#2ECC8F';
+const CITIES = {Delhi:[28.6139,77.209], Mumbai:[19.076,72.8777], Bengaluru:[12.9716,77.5946], Chennai:[13.0827,80.2707], Kolkata:[22.5726,88.3639], Hyderabad:[17.385,78.4867]};
+
+const map = L.map('map', {zoomControl:false}).setView([22.9, 79], 5);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'&copy; OpenStreetMap contributors', maxZoom:19, className:'dark-tiles'}).addTo(map);
+const gridLayer = L.layerGroup().addTo(map);
+const pinIcon = L.divIcon({className:'', html:'<div class="pin"></div>', iconSize:[18,18], iconAnchor:[9,9]});
+let pin = null, ring = null, last = null, watchId = null, lastTrack = 0, ticket = 0, recent = [], gridTimer = null;
+
+const lg = document.createElement('div');
+lg.className = 'legend';
+lg.innerHTML = '<span><i class="dot" style="background:#2ECC8F"></i>Low</span><span><i class="dot" style="background:#FFA630"></i>Medium</span><span><i class="dot" style="background:#FF4D4D"></i>High</span>';
+$('map').appendChild(lg);
+
+$('chips').innerHTML = Object.keys(CITIES).map(n => `<button data-c="${n}">${n}</button>`).join('');
+$('chips').onclick = e => { const c = e.target.dataset.c; if (c) check(...CITIES[c], {fly:true}); };
+map.on('click', e => check(e.latlng.lat, e.latlng.lng));
+$('locBtn').onclick = locate;
+$('refreshBtn').onclick = () => last && check(last.location.lat, last.location.lon);
+$('copyBtn').onclick = async () => {
+  const u = `${location.origin}${location.pathname}?lat=${last.location.lat.toFixed(5)}&lon=${last.location.lon.toFixed(5)}`;
+  try { await navigator.clipboard.writeText(u); $('copyBtn').textContent = 'Link copied'; } catch { prompt('Copy this link:', u); }
+  setTimeout(() => $('copyBtn').textContent = 'Copy share link', 1800);
+};
+
+$('searchForm').onsubmit = async e => {
+  e.preventDefault();
+  const q = $('q').value.trim(); if (!q) return;
+  try {
+    const r = await (await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=' + encodeURIComponent(q))).json();
+    if (!r.length) return showMsg('No place found for "' + q + '". Try a city or area name.');
+    check(+r[0].lat, +r[0].lon, {fly:true});
+  } catch { showMsg('Search failed. Check your internet connection and try again.'); }
+};
+
+function locate() {
+  if (!navigator.geolocation) return showMsg('This browser cannot share location. Search a place or tap the map instead.');
+  showLoading();
+  navigator.geolocation.getCurrentPosition(
+    p => check(p.coords.latitude, p.coords.longitude, {fly:true}),
+    err => showMsg('Could not get your location (' + err.message + '). Allow location access in the browser, or search a place instead.'),
+    {enableHighAccuracy:true, timeout:15000});
+}
+
+$('track').onchange = () => {
+  if (!$('track').checked) { if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null; return; }
+  if (!navigator.geolocation) return showMsg('This browser cannot share location.');
+  watchId = navigator.geolocation.watchPosition(p => {
+    if (Date.now() - lastTrack < 20000) return;
+    lastTrack = Date.now();
+    check(p.coords.latitude, p.coords.longitude, {fly:true});
+  }, err => showMsg('Tracking stopped: ' + err.message), {enableHighAccuracy:true});
+};
+
+$('gridToggle').onchange = () => { gridLayer.clearLayers(); if ($('gridToggle').checked) drawGrid(); };
+map.on('moveend', () => { if ($('gridToggle').checked) { clearTimeout(gridTimer); gridTimer = setTimeout(drawGrid, 500); } });
+
+function setView(id) { for (const k of ['empty','msg','sk','out']) $(k).classList.toggle('hidden', k !== id); }
+function showLoading() { setView('sk'); }
+function showMsg(t) { $('msg').textContent = t; setView('msg'); }
+
+async function check(lat, lon, o = {}) {
+  const t = ++ticket;
+  showLoading();
+  if (!pin) pin = L.marker([lat, lon], {icon:pinIcon}).addTo(map); else pin.setLatLng([lat, lon]);
+  if (o.fly) map.flyTo([lat, lon], 13, {animate:!reduce, duration:1.2});
+  try {
+    const res = await fetch(`/analyze?lat=${lat}&lon=${lon}`);
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    const d = await res.json();
+    if (t !== ticket) return;
+    last = d; render(d); addRecent(d);
+    history.replaceState(null, '', `?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}`);
+  } catch (e) { if (t === ticket) showMsg('Could not analyze this spot: ' + e.message); }
+}
+
+function countTo(el, to) {
+  const from = +el.dataset.v || 0; el.dataset.v = to;
+  const t0 = performance.now(), dur = reduce ? 0 : 900;
+  (function step(t) {
+    const k = dur ? Math.min((t - t0) / dur, 1) : 1, e = 1 - Math.pow(1 - k, 3);
+    el.firstChild.nodeValue = (from + (to - from) * e).toFixed(1);
+    if (k < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+function render(d) {
+  const r = d.risk, w = d.weather, rd = d.road, pct = Math.min(r.probability * 100, 100), c = hex(r.probability);
+  setView('out');
+  requestAnimationFrame(() => $('needle').style.transform = `rotate(${-90 + pct * 1.8}deg)`);
+  countTo($('num'), pct);
+  $('lvl').textContent = r.level + ' risk'; $('lvl').style.color = c;
+  $('advice').textContent = r.advice;
+  const max = Math.max(...r.factors.map(f => f.impact_pct), 1);
+  $('factors').innerHTML = r.factors.length
+    ? r.factors.map(f => `<div class="bar">${esc(f.factor)} <span style="color:var(--muted)">adds about ${f.impact_pct}%</span><i style="width:0" data-w="${f.impact_pct / max * 100}"></i></div>`).join('')
+    : '<div class="addr" style="margin:0">No major risk factors right now.</div>';
+  requestAnimationFrame(() => document.querySelectorAll('#factors i').forEach(i => i.style.width = i.dataset.w + '%'));
+  const f = [['Time', `${d.time.day}, ${d.time.datetime_ist}`], ['Weather', `${w.temperature_c}°C, rain ${w.rainfall_mm} mm`], ['Visibility', `${w.visibility_km} km`],
+    ['Road', `${rd.road_name} (${rd.road_type.replace('_', ' ')})`], ['Speed limit', `${rd.speed_limit} km/h`], ['Junction', rd.junction ? 'Yes' : 'No'],
+    ['Traffic (estimate)', `~${d.traffic_volume_estimate} vehicles/hour`]];
+  $('facts').innerHTML = f.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+  $('addr').textContent = d.location.address || 'Address not found';
+  $('src').textContent = `Data: ${w.source}; ${rd.source}`;
+  if (ring) ring.remove();
+  ring = L.circle([d.location.lat, d.location.lon], {radius:1200, color:c, weight:2, fillColor:c, fillOpacity:.15}).addTo(map);
+}
+
+function addRecent(d) {
+  const label = (d.location.address || '').split(',').slice(0, 2).join(',') || `${d.location.lat.toFixed(3)}, ${d.location.lon.toFixed(3)}`;
+  recent = [{lat:d.location.lat, lon:d.location.lon, label, p:d.risk.probability}, ...recent.filter(x => x.label !== label)].slice(0, 5);
+  $('recentBox').classList.remove('hidden');
+  $('recent').innerHTML = recent.map((x, i) => `<button data-i="${i}"><i class="dot" style="background:${hex(x.p)}"></i>${esc(x.label)} <span style="margin-left:auto;color:var(--muted)">${(x.p * 100).toFixed(0)}%</span></button>`).join('');
+}
+$('recent').onclick = e => { const b = e.target.closest('button'); if (b) { const x = recent[b.dataset.i]; check(x.lat, x.lon, {fly:true}); } };
+
+async function drawGrid() {
+  const b = map.getBounds(), n = 18;
+  const q = new URLSearchParams({hour:last ? last.time.hour_used : new Date().getHours(), rainfall_mm:last ? last.weather.rainfall_mm : 0,
+    visibility_km:last ? last.weather.visibility_km : 8, lat_min:b.getSouth(), lat_max:b.getNorth(), lon_min:b.getWest(), lon_max:b.getEast(), n});
+  try {
+    const res = await fetch('/risk-grid?' + q);
+    if (!res.ok) throw new Error((await res.json()).detail);
+    const pts = await res.json(), radius = (b.getNorth() - b.getSouth()) / n * 111000 / 2 * 1.05;
+    gridLayer.clearLayers();
+    pts.forEach(p => L.circle([p.lat, p.lon], {radius, stroke:false, fillColor:hex(p.risk), fillOpacity:.4}).bindTooltip((p.risk * 100).toFixed(0) + '% risk').addTo(gridLayer));
+  } catch (e) { showMsg('Heat map failed: ' + e.message); $('gridToggle').checked = false; }
+}
+
+const sp = new URLSearchParams(location.search);
+if (sp.has('lat') && sp.has('lon')) check(+sp.get('lat'), +sp.get('lon'), {fly:true});
+</script>
+</body>
+</html>
