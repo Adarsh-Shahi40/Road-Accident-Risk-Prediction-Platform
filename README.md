@@ -22,10 +22,10 @@ road-accident-risk/
 ## Setup (VS Code terminal)
 ```bash
 python -m venv venv
-# Windows: venv\Scripts\activate     | Mac/Linux: source venv/bin/activate
+venv\Scripts\activate
 pip install -r requirements.txt
 
-python src/generate_data.py     # demo data (skip if you have real data)
+python src/generate_data.py     # demo data 
 python src/train.py             # train the model
 uvicorn app.main:app --reload   # start the server
 ```
@@ -49,5 +49,3 @@ road_type, junction, traffic_volume, speed_limit, accident`), then re-run `src/t
 Note: real accident data only contains accidents, so you must also build "no accident"
 samples (same segments and times without a crash) to get the `accident = 0` rows.
 
-## Next steps
-PostGIS storage, live weather API, time-based train/test split, XGBoost/LightGBM, Docker.
